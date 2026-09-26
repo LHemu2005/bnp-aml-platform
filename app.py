@@ -41,4 +41,5 @@ if __name__ == '__main__':
         from data_gen import generate_aml_data
         generate_aml_data()
         
-    app.run(host='0.0.0.0', port=5050, debug=True)
+    port = int(os.environ.get("PORT", 5050))
+    app.run(host='0.0.0.0', port=port, debug=False)
