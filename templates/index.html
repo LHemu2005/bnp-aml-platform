@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - Project Vigilance</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome for Professional Icons (no emojis) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Vis Network for Graphs -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <!-- html2pdf for easy PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        body { 
+            background-color: #f4f6f9; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            color: #333;
+        }
+        
+        /* BNP Paribas Corporate Colors (Green and Dark Grey/Black) */
+        .navbar { 
+            background-color: #00915a; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .navbar-brand { 
+            color: #ffffff !important; 
+            font-weight: 600; 
+            letter-spacing: 0.5px;
+        }
+        
+        .card { 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+            margin-bottom: 20px; 
+            border: none;
+            border-radius: 6px;
+        }
+        
+        .card-header {
+            background-color: #2c3e50;
+            color: #ffffff;
+            font-weight: 500;
+            border-top-left-radius: 6px !important;
+            border-top-right-radius: 6px !important;
+            padding: 12px 16px;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 650px; 
+            background: #ffffff; 
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+        
+        /* Typography and Badges */
+        .critical { color: #d32f2f; font-weight: bold;}
+        .high { color: #f57c00; font-weight: bold;}
+        .medium { color: #fbc02d; font-weight: bold;}
+        .low { color: #388e3c; font-weight: bold;}
+        
+        .badge-critical { background-color: #d32f2f; color: white; }
+        .badge-high { background-color: #f57c00; color: white; }
+        .badge-medium { background-color: #fbc02d; color: black; }
+        .badge-low { background-color: #388e3c; color: white; }
+        
+        .list-group-item {
+            border-left: 4px solid transparent;
+            transition: all 0.2s ease-in-out;
+        }
+        .list-group-item:hover {
+            background-color: #f8f9fa;
+        }
+        .list-group-item.active-item {
+            background-color: #e9ecef;
+            border-left-color: #00915a;
+        }
+
+        .table th {
+            background-color: #f1f3f5;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: #495057;
+        }
+        .table td {
+            font-size: 0.9rem;
+            vertical-align: middle;
+        }
+        
+        /* Loading Overlay */
+        #loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            font-weight: 500;
+            color: #00915a;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg mb-4">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand" href="#">
+            <i class="fa-solid fa-shield-halved me-2"></i>Project Vigilance - AML Detection Platform
+        </a>
+    </div>
+</nav>
+
+<div class="container-fluid px-4">
+    <div class="row">
+        <!-- Suspicious Accounts List -->
+        <div class="col-md-3">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="fa-solid fa-triangle-exclamation me-2"></i>Suspicious Entities
+                </div>
+                <div class="card-body p-0" style="max-height: 700px; overflow-y: auto;">
+                    <ul class="list-group list-group-flush" id="alertsList">
+                        <li class="list-group-item text-center text-muted py-4">
+                            <i class="fa-solid fa-spinner fa-spin me-2"></i>Loading entities...
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Graph -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fa-solid fa-project-diagram me-2"></i>Relationship Network</span>
+                    <button class="btn btn-sm btn-outline-light" onclick="resetGraphZoom()" title="Reset Zoom">
+                        <i class="fa-solid fa-expand"></i>
+                    </button>
+                </div>
+                <div class="card-body p-3 position-relative">
+                    <div id="loading-overlay">
+                        <span><i class="fa-solid fa-circle-notch fa-spin me-2"></i>Rendering Network...</span>
+                    </div>
+                    <div id="network"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Investigation Panel -->
+        <div class="col-md-3">
+            <div class="card h-100" id="reportPanel">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fa-solid fa-file-invoice me-2"></i>Investigation Report</span>
+                    <button class="btn btn-sm btn-light text-dark fw-bold" onclick="generatePDF()">
+                        <i class="fa-solid fa-download me-1"></i>Export PDF
+                    </button>
+                </div>
+                <div class="card-body" id="investigationDetails">
+                    <div class="text-center text-muted mt-5">
+                        <i class="fa-solid fa-hand-pointer fa-3x mb-3 text-light"></i>
+                        <p>Select a node from the network graph or the entities list to view investigation details.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let network = null;
+    let nodesDataset = null;
+    let edgesDataset = null;
+
+    async function loadAlerts() {
+        try {
+            const response = await fetch('/api/risk-scores');
+            const data = await response.json();
+            const list = document.getElementById('alertsList');
+            list.innerHTML = '';
+            
+            // Sort by score descending
+            const sorted = Object.entries(data).sort((a, b) => b[1].score - a[1].score);
+            
+            if (sorted.length === 0) {
+                list.innerHTML = `<li class="list-group-item text-center text-muted">No suspicious entities found.</li>`;
+                return;
+            }
+
+            for(let [account, info] of sorted) {
+                let badgeClass = info.level === 'Critical' ? 'badge-critical' : 
+                                 info.level === 'High' ? 'badge-high' : 'badge-medium';
+                list.innerHTML += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center" 
+                        style="cursor:pointer;" 
+                        id="list-item-${account}"
+                        onclick="selectAccount('${account}')">
+                        <span class="fw-medium">${account}</span>
+                        <span class="badge ${badgeClass} rounded-pill">Score: ${info.score}</span>
+                    </li>
+                `;
+            }
+        } catch (error) {
+            console.error("Error loading alerts:", error);
+            document.getElementById('alertsList').innerHTML = `<li class="list-group-item text-danger">Failed to load alerts.</li>`;
+        }
+    }
+
+    async function loadGraph() {
+        try {
+            const response = await fetch('/api/graph');
+            const data = await response.json();
+            
+            // Hide loading overlay
+            document.getElementById('loading-overlay').style.display = 'none';
+
+            nodesDataset = new vis.DataSet(data.nodes);
+            edgesDataset = new vis.DataSet(data.edges);
+
+            const container = document.getElementById('network');
+            const graphData = { nodes: nodesDataset, edges: edgesDataset };
+            
+            const options = {
+                nodes: { 
+                    shape: 'dot', 
+                    size: 15, 
+                    font: { size: 12, face: 'Segoe UI', color: '#333' },
+                    borderWidth: 2
+                },
+                edges: {
+                    color: { color: '#b0bec5', highlight: '#00915a' },
+                    font: { size: 10, align: 'middle' },
+                    smooth: { type: 'continuous' }
+                },
+                groups: {
+                    Critical: { color: { background: '#ffebee', border: '#d32f2f' } },
+                    High: { color: { background: '#fff3e0', border: '#f57c00' } },
+                    Medium: { color: { background: '#fffde7', border: '#fbc02d' } },
+                    Low: { color: { background: '#e8f5e9', border: '#388e3c' } }
+                },
+                physics: {
+                    barnesHut: { gravitationalConstant: -3000, springLength: 200, springConstant: 0.04 },
+                    stabilization: { iterations: 150 }
+                },
+                interaction: { hover: true, tooltipDelay: 200 }
+            };
+
+            network = new vis.Network(container, graphData, options);
+            
+            network.on("selectNode", function (params) {
+                if(params.nodes.length > 0) {
+                    selectAccount(params.nodes[0]);
+                }
+            });
+        } catch (error) {
+            console.error("Error loading graph:", error);
+            document.getElementById('loading-overlay').innerHTML = `<span class="text-danger"><i class="fa-solid fa-circle-exclamation me-2"></i>Failed to render network.</span>`;
+        }
+    }
+
+    function resetGraphZoom() {
+        if(network) {
+            network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+            network.unselectAll();
+        }
+    }
+
+    async function selectAccount(accountId) {
+        // Highlight active item in list
+        document.querySelectorAll('.list-group-item').forEach(el => el.classList.remove('active-item'));
+        const activeItem = document.getElementById(`list-item-${accountId}`);
+        if(activeItem) activeItem.classList.add('active-item');
+
+        try {
+            // Fetch risk score
+            const scoreRes = await fetch('/api/risk-scores');
+            const scores = await scoreRes.json();
+            const info = scores[accountId] || {score: 0, level: 'Low', reasons: ['No suspicious activity detected.']};
+            
+            // Fetch timeline
+            const timeRes = await fetch(`/api/timeline/${accountId}`);
+            const timeline = await timeRes.json();
+            
+            const details = document.getElementById('investigationDetails');
+            
+            let html = `
+                <div class="mb-3 pb-2 border-bottom">
+                    <h5 class="fw-bold mb-1"><i class="fa-solid fa-user-circle me-2 text-secondary"></i>${accountId}</h5>
+                    <div class="d-flex align-items-center mt-2">
+                        <span class="me-2 text-muted small">Risk Classification:</span>
+                        <span class="${info.level.toLowerCase()} fw-bold">${info.level} (Score: ${info.score}/100)</span>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h6 class="fw-bold text-secondary"><i class="fa-solid fa-brain me-2"></i>AI Reasoning Model</h6>
+                    <ul class="list-group list-group-flush border mt-2 rounded">
+                        ${info.reasons.map(r => `<li class="list-group-item py-1 px-2 small bg-light border-0 border-bottom"><i class="fa-solid fa-check text-success me-2"></i>${r}</li>`).join('')}
+                    </ul>
+                </div>
+                
+                <div>
+                    <h6 class="fw-bold text-secondary"><i class="fa-solid fa-clock-rotate-left me-2"></i>Transaction Audit Trail</h6>
+                    <div style="max-height: 280px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th>Date/Time</th>
+                                    <th>Flow</th>
+                                    <th>Amount</th>
+                                    <th>Counterparty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            timeline.forEach(tx => {
+                let isSender = tx.sender_account === accountId;
+                let type = isSender ? '<span class="text-danger fw-bold"><i class="fa-solid fa-arrow-right me-1"></i>OUT</span>' : '<span class="text-success fw-bold"><i class="fa-solid fa-arrow-left me-1"></i>IN</span>';
+                let other = isSender ? tx.receiver_account : tx.sender_account;
+                
+                // Format date cleanly
+                let d = new Date(tx.timestamp);
+                let dateStr = d.toLocaleDateString() + " " + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                html += `<tr>
+                            <td class="text-muted">${dateStr}</td>
+                            <td>${type}</td>
+                            <td class="font-monospace">${tx.amount.toLocaleString()}</td>
+                            <td><span class="badge bg-secondary">${other}</span></td>
+                         </tr>`;
+            });
+            
+            html += `</tbody></table></div></div>`;
+            details.innerHTML = html;
+            
+            // Focus graph on node
+            if(network) {
+                network.selectNodes([accountId]);
+                network.focus(accountId, {
+                    scale: 1.2, 
+                    animation: { duration: 500, easingFunction: 'easeInOutQuad' }
+                });
+            }
+        } catch(err) {
+            console.error("Error fetching account details:", err);
+        }
+    }
+
+    function generatePDF() {
+        const element = document.getElementById('reportPanel');
+        const opt = {
+          margin:       0.5,
+          filename:     'AML_Compliance_Report.pdf',
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true },
+          jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        
+        // Temporarily modify styles for better PDF output
+        const originalHeight = element.style.height;
+        element.style.height = 'auto'; // allow expansion
+        
+        html2pdf().set(opt).from(element).save().then(() => {
+            element.style.height = originalHeight; // restore
+        });
+    }
+
+    window.onload = () => {
+        loadAlerts();
+        loadGraph();
+    };
+</script>
+</body>
+</html>
